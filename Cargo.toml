@@ -1,0 +1,13 @@
+[package]
+name = "operator"
+version = "0.1.0"
+authors = ["Tom Kunc <tomkunc0@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+cgi = "0.2.0"
+serde_json = "1.0.40"
+serde = { version = "1.0.100", features = ["derive"] }
+jsonwebtoken = "6.0.1"
+base64 = "0.10.1"
+pem-parser = "0.1.1"
