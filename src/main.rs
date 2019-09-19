@@ -3,7 +3,6 @@ extern crate serde;
 extern crate serde_json;
 extern crate jsonwebtoken;
 extern crate base64;
-extern crate pem_parser;
 
 use std::fs;
 use std::str;
@@ -40,7 +39,7 @@ struct ResponseJWT {
 }
 
 fn process_request(
-    request_string: String,
+    request_string: &str,
 ) -> Result<ResponseJWT, HTMLError> {
     let debug = false;
     let unsafe_request = match jsonwebtoken::dangerous_unsafe_decode::<RequestJWT>(
@@ -154,17 +153,8 @@ fn err_response(error: HTMLError) -> cgi::Response {
     )
 }
 
-fn get_public_key() -> Result<(String, Vec<u8>), ()> {
-    match fs::read_to_string("config/keys/operator/public.pem") {
-        Ok(s) => {
-            let der = pem_parser::pem_to_der(&s);
-            Ok((s, der))
-        }
-        Err(_) => Err(())
-    }
-}
-fn get_private_key() -> Result<(String, Vec<u8>), ()> {
-    match fs::read_to_string("config/keys/operator/private.pem") {
+fn get_key(group: &str, user: &str) -> Result<(String, Vec<u8>), ()> {
+    match fs::read_to_string(format!("config/keys/{}/{}", group, user)) {
         Ok(s) => {
             let der = pem_parser::pem_to_der(&s);
             Ok((s, der))
@@ -173,15 +163,15 @@ fn get_private_key() -> Result<(String, Vec<u8>), ()> {
     }
 }
 
-fn main() { cgi::handle(|request: cgi::Request| -> cgi::Response {
-    let (public_key_text, _) = match get_public_key() {
+fn cgi_handler(request: cgi::Request) -> cgi::Response {
+    let (public_key_text, _) = match get_key("operator", "public.pem") {
         Ok(public_key) => public_key,
         Err(()) => return err_response(HTMLError {
             error: "Server Keys Not Accessible.".to_owned(),
             status_code: 500
         })
     };
-    let (_, private_key) = match get_private_key() {
+    let (_, private_key) = match get_key("operator", "private.pem") {
         Ok(public_key) => public_key,
         Err(()) => return err_response(HTMLError {
             error: "Server Keys Not Accessible.".to_owned(),
@@ -202,14 +192,7 @@ fn main() { cgi::handle(|request: cgi::Request| -> cgi::Response {
                 status_code: 405,
             })
         }
-        /*let request = match serde_json::from_slice(&body) {
-            Ok(jwt) => jwt,
-            Err(e) => return err_response(HTMLError {
-                error: e.to_string(),
-                status_code: 400
-            }),
-        };*/
-        return match process_request(str::from_utf8(&body[..]).unwrap().to_owned()) {
+        return match process_request(str::from_utf8(&body[..]).unwrap()) {
             Ok(jwt) => cgi::html_response(
                 200,
                 jsonwebtoken::encode(
@@ -235,4 +218,8 @@ fn main() { cgi::handle(|request: cgi::Request| -> cgi::Response {
         error: "Page Not Found.".to_owned(),
         status_code: 404
     })
-})}
+}
+
+fn main() {
+    cgi::handle(cgi_handler)
+}
